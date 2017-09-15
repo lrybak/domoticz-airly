@@ -11,7 +11,7 @@ git clone https://github.com/lrybak/domoticz-airly
 ```
 * Restart Domoticz
 * Go to Setup > Hardware and create new Hardware with type: domoticz-airly
-	* Enter name (it's up to you), API key and sensor id would like to monitor. You can map particular sensor to id on https://map.airly.eu/
+	* Enter name (it's up to you), API key and sensor id would like to monitor. You can map particular sensor to id on https://map.airly.eu/ - just click the particular station and get the sensor id from the URL
 	* Check every x minutes - how often plugin will check for new data. Consider API daily query limit limitation!
 
 Plugin comunicates via Domoticz logs. Check logs in case of issues. After first API lookup plugin will create all the devices
