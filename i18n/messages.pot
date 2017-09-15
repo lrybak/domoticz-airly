@@ -1,0 +1,109 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR ORGANIZATION
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"POT-Creation-Date: 2017-09-15 12:48+CEST\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Transfer-Encoding: ENCODING\n"
+"Generated-By: pygettext.py 1.5\n"
+
+
+#: domoticz-airly/plugin.py:103
+msgid "Air Quality Index"
+msgstr ""
+
+#: domoticz-airly/plugin.py:112
+msgid "PM1"
+msgstr ""
+
+#: domoticz-airly/plugin.py:121
+msgid "PM2,5"
+msgstr ""
+
+#: domoticz-airly/plugin.py:130
+msgid "PM10"
+msgstr ""
+
+#: domoticz-airly/plugin.py:139
+msgid "Air pollution Level"
+msgstr ""
+
+#: domoticz-airly/plugin.py:147
+msgid "Temperature"
+msgstr ""
+
+#: domoticz-airly/plugin.py:154
+msgid "Air pressure"
+msgstr ""
+
+#: domoticz-airly/plugin.py:161
+msgid "Humidity"
+msgstr ""
+
+#: domoticz-airly/plugin.py:168
+msgid "Sensor information"
+msgstr ""
+
+#: domoticz-airly/plugin.py:214
+msgid "Device Unit=%(Unit)d; Name='%(Name)s' already exists"
+msgstr ""
+
+#: domoticz-airly/plugin.py:234
+msgid "Creating device Name=%(Name)s; Unit=%(Unit)d; ; TypeName=%(TypeName)s; Used=%(Used)d"
+msgstr ""
+
+#: domoticz-airly/plugin.py:276
+msgid "%(Vendor)s - %(Address)s, %(Locality)s<br/>Station founder: %(sensorFounder)s"
+msgstr ""
+
+#: domoticz-airly/plugin.py:284
+msgid "%(Vendor)s - %(Locality)s %(StreetNumber)s<br/>Station founder: %(sensorFounder)s"
+msgstr ""
+
+#: domoticz-airly/plugin.py:308
+msgid "Great air quality"
+msgstr ""
+
+#: domoticz-airly/plugin.py:311
+msgid "Good air auality"
+msgstr ""
+
+#: domoticz-airly/plugin.py:314
+msgid "Average air quality"
+msgstr ""
+
+#: domoticz-airly/plugin.py:317
+msgid "Poor air quality"
+msgstr ""
+
+#: domoticz-airly/plugin.py:320
+msgid "Bad air today!"
+msgstr ""
+
+#: domoticz-airly/plugin.py:323
+msgid "Really bad air today!"
+msgstr ""
+
+#: domoticz-airly/plugin.py:362
+msgid "Sensor id (%(sensor_id)d) not exists"
+msgstr ""
+
+#: domoticz-airly/plugin.py:364
+msgid "Not authorized"
+msgstr ""
+
+#: domoticz-airly/plugin.py:368
+msgid "Starting device update"
+msgstr ""
+
+#: domoticz-airly/plugin.py:380
+msgid "Update unit=%d; nValue=%d; sValue=%s"
+msgstr ""
+
