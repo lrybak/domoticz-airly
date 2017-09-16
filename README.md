@@ -1,6 +1,9 @@
 # domoticz-airly
 A Python plugin for Domoticz to access airly api for smog data in Poland
 
+## Disclaimer
+Please consider this plugin as a beta software as some users reporting ocassional Domoticz crashes. It's strongly recommended to backup your domoticz database before playing with the plugin.
+
 ## Installation
 * Make sure your Domoticz instance supports Domoticz Plugin System - see more https://www.domoticz.com/wiki/Using_Python_plugins
 * Register at https://apiportal.airly.eu/ and get your API key
