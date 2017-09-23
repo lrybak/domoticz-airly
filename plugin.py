@@ -6,6 +6,7 @@
 #
 #
 # v0.1.0 - initial version, fetching data from airly sensor
+# v0.1.1 - response body decode - error handling, minor language corrections
 #
 """
 <plugin key="AIRLY" name="domoticz-airly" author="fisher" version="0.1.0" wikilink="https://www.domoticz.com/wiki/Plugins/domoticz-airly.html" externallink="https://github.com/lrybak/domoticz-airly">
@@ -306,7 +307,7 @@ class BasePlugin:
                 pollutionText = _("Great air quality")
             elif res["pollutionLevel"] == 2:
                 pollutionLevel = 1  # green
-                pollutionText = _("Good air auality")
+                pollutionText = _("Good air quality")
             elif res["pollutionLevel"] == 3:
                 pollutionLevel = 2  # yellow
                 pollutionText = _("Average air quality")
@@ -315,10 +316,10 @@ class BasePlugin:
                 pollutionText = _("Poor air quality")
             elif res["pollutionLevel"] == 5:
                 pollutionLevel = 4  # red
-                pollutionText = _("Bad air today!")
+                pollutionText = _("Bad air quality")
             elif res["pollutionLevel"] == 6:
                 pollutionLevel = 4  # red
-                pollutionText = _("Really bad air today!")
+                pollutionText = _("Really bad air quality")
             else:
                 pollutionLevel = 0
 
@@ -375,8 +376,9 @@ class BasePlugin:
             # Create device if required
             if sV:
                 self.createDevice(key=unit)
-                Domoticz.Log(_("Update unit=%d; nValue=%d; sValue=%s") % (unit, nV, sV))
-                Devices[unit].Update(nValue=nV, sValue=sV)
+                if unit in Devices:
+                    Domoticz.Log(_("Update unit=%d; nValue=%d; sValue=%s") % (unit, nV, sV))
+                    Devices[unit].Update(nValue=nV, sValue=sV)
 
     def api_airly_headers(self):
         """return http request headers"""
@@ -403,9 +405,11 @@ class BasePlugin:
         response_object = {}
         if response.status == 200:
             response_body = response.read()
-            response_object = json.loads(response_body.decode("utf-8"))
-
-            if len(response_object['currentMeasurements']) > 0:
+            try:
+                response_object = json.loads(response_body.decode("utf-8"))
+            except UnicodeDecodeError as ude:
+                Domoticz.Error(ude)
+            if "currentMeasurements" in response_object and len(response_object['currentMeasurements']) > 0:
                 return response_object['currentMeasurements']
             else:
                 raise SensorNotFoundException(sensor_id, "")
