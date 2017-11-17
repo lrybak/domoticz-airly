@@ -7,6 +7,7 @@
 #
 # v0.1.0 - initial version, fetching data from airly sensor
 # v0.1.1 - response body decode - error handling, minor language corrections
+# v0.1.2 - removed gettext based translations - it caused plugin instability
 #
 """
 <plugin key="AIRLY" name="domoticz-airly" author="fisher" version="0.1.0" wikilink="https://www.domoticz.com/wiki/Plugins/domoticz-airly.html" externallink="https://github.com/lrybak/domoticz-airly">
@@ -24,15 +25,71 @@
 </plugin>
 """
 import Domoticz
-import os
-import gettext
-import locale
 import datetime
 import json
 from http.client import HTTPSConnection
 from urllib.parse import urlparse
 from urllib.parse import urlencode
 
+L10N = {
+    'pl': {
+        "Air Quality Index":
+            "Jakość powietrza",
+        "PM1":
+            "PM1",
+        "PM2,5":
+            "PM2,5",
+        "PM10":
+            "PM10",
+        "Air pollution Level":
+            "Zanieczyszczenie powietrza",
+        "Temperature":
+            "Temperatura",
+        "Air pressure":
+            "Ciśnienie powietrza",
+        "Humidity":
+            "Wilgotność",
+        "Sensor information":
+            "Informacje o stacji",
+        "Device Unit=%(Unit)d; Name='%(Name)s' already exists":
+            "Urządzenie Unit=%(Unit)d; Name='%(Name)s' już istnieje",
+        "Creating device Name=%(Name)s; Unit=%(Unit)d; ; TypeName=%(TypeName)s; Used=%(Used)d":
+            "Tworzę urządzenie Name=%(Name)s; Unit=%(Unit)d; ; TypeName=%(TypeName)s; Used=%(Used)d",
+        "%(Vendor)s - %(Address)s, %(Locality)s<br/>Station founder: %(sensorFounder)s":
+            "%(Vendor)s - %(Address)s, %(Locality)s<br/>Sponsor stacji: %(sensorFounder)s",
+        "%(Vendor)s - %(Locality)s %(StreetNumber)s<br/>Station founder: %(sensorFounder)s":
+            "%(Vendor)s - %(Locality)s %(StreetNumber)s<br/>Sponsor stacji: %(sensorFounder)s",
+        "Great air quality":
+            "Bardzo dobra jakość powietrza",
+        "Good air quality":
+            "Dobra jakość powietrza",
+        "Average air quality":
+            "Przeciętna jakość powietrza",
+        "Poor air quality":
+            "Słaba jakość powietrza",
+        "Bad air quality":
+            "Zła jakość powietrza",
+        "Really bad air quality":
+            "Bardzo zła jakość powietrza",
+        "Sensor id (%(sensor_id)d) not exists":
+            "Sensor (%(sensor_id)d) nie istnieje",
+        "Not authorized":
+            "Brak autoryzacji",
+        "Starting device update":
+            "Rozpoczynanie aktualizacji urządzeń",
+        "Update unit=%d; nValue=%d; sValue=%s":
+            "Aktualizacja unit=%d; nValue=%d; sValue=%s",
+        "Bad air today!":
+            "Zła jakość powietrza"
+    },
+    'en': { }
+}
+
+def _(key):
+    try:
+        return L10N[Settings["Language"]][key]
+    except KeyError:
+        return key
 
 class UnauthorizedException(Exception):
     def __init__(self, expression, message):
@@ -49,7 +106,7 @@ class BasePlugin:
 
     def __init__(self):
         # Consts
-        self.version = "0.1.0"
+        self.version = "0.1.2"
         self.airly_api_user_agent = "domoticz-airly/%s" % self.version
         self.api_v1_sensor_measurements = "https://airapi.airly.eu/v1/sensor/measurements"
         self.api_v1_sensor_info = "https://airapi.airly.eu/v1/sensors/%(sensorId)d"
@@ -83,9 +140,6 @@ class BasePlugin:
         return
 
     def onStart(self):
-        # Start l18n
-        init_localization()
-
         Domoticz.Debug("onStart called")
         if Parameters["Mode6"] == 'Debug':
             self.debug = True
@@ -279,7 +333,6 @@ class BasePlugin:
                     "sensorFounder": res["name"],
                 }
             else:
-                pass
                 self.variables[self.UNIT_STATION_LOCATION]['sValue'] = _("%(Vendor)s - %(Locality)s %(StreetNumber)s<br/>Station founder: %(sensorFounder)s") % {
                     "Vendor": res["vendor"],
                     "Locality": res["address"]["locality"],
@@ -296,7 +349,6 @@ class BasePlugin:
 
             res = self.sensor_measurement(Parameters["Mode2"])
 
-            self.variables[self.UNIT_PM10]['nValue'] = 4
             self.variables[self.UNIT_PM10]['sValue'] = res["pm10"]
             self.variables[self.UNIT_PM25]['sValue'] = res["pm25"]
             self.variables[self.UNIT_PM1]['sValue'] = res["pm1"]
@@ -492,22 +544,3 @@ def DumpConfigToLog():
         Domoticz.Debug("Device sValue:   '" + Devices[x].sValue + "'")
         Domoticz.Debug("Device LastLevel: " + str(Devices[x].LastLevel))
     return
-
-
-def init_localization():
-    '''prepare l10n'''
-
-    locale.setlocale(locale.LC_ALL, '') # use user's preferred locale
-    # take first two characters of country code
-    loc = locale.getlocale()
-    filename = os.path.dirname(os.path.realpath(__file__)) \
-               + "/i18n/%s.mo" % Settings["Language"]
-
-    try:
-        Domoticz.Debug("Opening message file %s for locale %s", filename, loc[0] )
-        trans = gettext.GNUTranslations(open( filename, "rb" ) )
-    except IOError:
-        Domoticz.Debug("Locale not found. Using default messages")
-        trans = gettext.NullTranslations()
-
-    trans.install()
