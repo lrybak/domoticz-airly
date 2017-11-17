@@ -19,7 +19,7 @@ You can add more station to lookup - create another plugin (hardware) instance
 
 ## Update
 ```
-cd YOUR_DOMOTICZ_PATH/plugins/domoticz-storm-report
+cd YOUR_DOMOTICZ_PATH/plugins/domoticz-airly
 git pull
 ```
 * Restart Domoticz
