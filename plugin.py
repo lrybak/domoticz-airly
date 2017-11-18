@@ -8,7 +8,8 @@
 # v0.1.0 - initial version, fetching data from airly sensor
 # v0.1.1 - response body decode - error handling, minor language corrections
 # v0.1.2 - removed gettext based translations - it caused plugin instability
-# v0.2 - added support for GIOS stations, fixed a bug where the update was suspended in the event of a response decode error
+# v0.2   - added support for GIOS stations, fixed a bug where the update was suspended in the event of a response decode error
+# v0.2.1 - pm25 & pm10 percentage indicator
 #
 """
 <plugin key="AIRLY" name="domoticz-airly" author="fisher" version="0.1.0" wikilink="https://www.domoticz.com/wiki/Plugins/domoticz-airly.html" externallink="https://github.com/lrybak/domoticz-airly">
@@ -42,6 +43,10 @@ L10N = {
             "PM2,5",
         "PM10":
             "PM10",
+        "PM2,5 Norm":
+            "PM2,5 Norma",
+        "PM10 Norm":
+            "PM10 Norma",
         "Air pollution Level":
             "Zanieczyszczenie powietrza",
         "Temperature":
@@ -136,6 +141,12 @@ class BasePlugin:
         self.UNIT_HUMIDITY              = 8
         self.UNIT_STATION_LOCATION      = 9
 
+        self.UNIT_PM25_PERCENTAGE       = 11
+        self.UNIT_PM10_PERCENTAGE       = 12
+
+        self.UNIT_PM25_NORM             = 25
+        self.UNIT_PM10_NORM             = 50
+
 
         self.nextpoll = datetime.datetime.now()
         return
@@ -168,7 +179,7 @@ class BasePlugin:
                 "TypeName": "Custom",
                 "Options":  {"Custom": "1;%s" % "µg/m³"},
                 "Image":    7,
-                "Used":     1,
+                "Used":     0,
                 "nValue":   0,
                 "sValue":   None,
             },
@@ -226,6 +237,20 @@ class BasePlugin:
                 "Used":     0,
                 "nValue":   0,
                 "sValue":   None,
+            },
+            self.UNIT_PM25_PERCENTAGE: {
+                "Name": _("PM2,5 Norm"),
+                "TypeName": "Percentage",
+                "Used": 1,
+                "nValue": 0,
+                "sValue": None,
+            },
+            self.UNIT_PM10_PERCENTAGE: {
+                "Name": _("PM10 Norm"),
+                "TypeName": "Percentage",
+                "Used": 1,
+                "nValue": 0,
+                "sValue": None,
             },
         }
 
@@ -357,11 +382,13 @@ class BasePlugin:
 
             try:
                 self.variables[self.UNIT_PM10]['sValue'] = res["pm10"]
+                self.variables[self.UNIT_PM10_PERCENTAGE]['sValue'] = (res["pm10"]/self.UNIT_PM10_NORM) * 100
             except KeyError:
                 pass  # No pm10 value
 
             try:
                 self.variables[self.UNIT_PM25]['sValue'] = res["pm25"]
+                self.variables[self.UNIT_PM25_PERCENTAGE]['sValue'] = (res["pm25"] / self.UNIT_PM25_NORM) * 100
             except KeyError:
                 pass  # No pm25 value
 
