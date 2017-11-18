@@ -1,13 +1,14 @@
-# A Python plugin for Domoticz to access burze.dzis.net API for weather/storm data
+# A Python plugin for Domoticz to access airly api for smog information in Poland
 #
 # Author: fisher
 #
-# TODO: Add support for GIOS sensor data
+# TODO: Update text sensors only when changed
 #
 #
 # v0.1.0 - initial version, fetching data from airly sensor
 # v0.1.1 - response body decode - error handling, minor language corrections
 # v0.1.2 - removed gettext based translations - it caused plugin instability
+# v0.2 - added support for GIOS stations, fixed a bug where the update was suspended in the event of a response decode error
 #
 """
 <plugin key="AIRLY" name="domoticz-airly" author="fisher" version="0.1.0" wikilink="https://www.domoticz.com/wiki/Plugins/domoticz-airly.html" externallink="https://github.com/lrybak/domoticz-airly">
@@ -136,7 +137,7 @@ class BasePlugin:
         self.UNIT_STATION_LOCATION      = 9
 
 
-        self.lastDataFetch = datetime.datetime.now()
+        self.nextpoll = datetime.datetime.now()
         return
 
     def onStart(self):
@@ -149,6 +150,7 @@ class BasePlugin:
             Domoticz.Debugging(0)
 
         Domoticz.Heartbeat(20)
+        self.pollinterval = int(Parameters["Mode3"]) * 60
 
 
         self.variables = {
@@ -308,12 +310,16 @@ class BasePlugin:
 
 
     def onHeartbeat(self, fetch=False):
-        Domoticz.Log("onHeartbeat called")
+        Domoticz.Debug("onHeartbeat called")
+        now = datetime.datetime.now()
 
         if fetch == False:
-            if self.inProgress or (
-                        (datetime.datetime.now() - self.lastDataFetch).total_seconds() < int(Parameters["Mode3"]) * 60):
+            if self.inProgress or (now < self.nextpoll):
+                Domoticz.Debug("Awaiting next pool: %s" % str(self.nextpoll))
                 return
+
+        # Set next pool time
+        self.nextpoll = now + datetime.timedelta(seconds=self.pollinterval)
 
         # First call, lets query API for sensor location data
         if fetch:
@@ -349,34 +355,53 @@ class BasePlugin:
 
             res = self.sensor_measurement(Parameters["Mode2"])
 
-            self.variables[self.UNIT_PM10]['sValue'] = res["pm10"]
-            self.variables[self.UNIT_PM25]['sValue'] = res["pm25"]
-            self.variables[self.UNIT_PM1]['sValue'] = res["pm1"]
-            self.variables[self.UNIT_AIR_QUALITY_INDEX]['sValue'] = res["airQualityIndex"]
+            try:
+                self.variables[self.UNIT_PM10]['sValue'] = res["pm10"]
+            except KeyError:
+                pass  # No pm10 value
 
-            if res["pollutionLevel"] == 1:
-                pollutionLevel = 1  # green
-                pollutionText = _("Great air quality")
-            elif res["pollutionLevel"] == 2:
-                pollutionLevel = 1  # green
-                pollutionText = _("Good air quality")
-            elif res["pollutionLevel"] == 3:
-                pollutionLevel = 2  # yellow
-                pollutionText = _("Average air quality")
-            elif res["pollutionLevel"] == 4:
-                pollutionLevel = 3  # orange
-                pollutionText = _("Poor air quality")
-            elif res["pollutionLevel"] == 5:
-                pollutionLevel = 4  # red
-                pollutionText = _("Bad air quality")
-            elif res["pollutionLevel"] == 6:
-                pollutionLevel = 4  # red
-                pollutionText = _("Really bad air quality")
-            else:
-                pollutionLevel = 0
+            try:
+                self.variables[self.UNIT_PM25]['sValue'] = res["pm25"]
+            except KeyError:
+                pass  # No pm25 value
 
-            self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['nValue'] = pollutionLevel
-            self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['sValue'] = pollutionText
+            try:
+                self.variables[self.UNIT_PM1]['sValue'] = res["pm1"]
+            except KeyError:
+                pass  # No pm1 value
+
+            try:
+                self.variables[self.UNIT_AIR_QUALITY_INDEX]['sValue'] = res["airQualityIndex"]
+            except KeyError:
+                pass  # No airQualityIndex value
+
+            try:
+                if res["pollutionLevel"] == 1:
+                    pollutionLevel = 1  # green
+                    pollutionText = _("Great air quality")
+                elif res["pollutionLevel"] == 2:
+                    pollutionLevel = 1  # green
+                    pollutionText = _("Good air quality")
+                elif res["pollutionLevel"] == 3:
+                    pollutionLevel = 2  # yellow
+                    pollutionText = _("Average air quality")
+                elif res["pollutionLevel"] == 4:
+                    pollutionLevel = 3  # orange
+                    pollutionText = _("Poor air quality")
+                elif res["pollutionLevel"] == 5:
+                    pollutionLevel = 4  # red
+                    pollutionText = _("Bad air quality")
+                elif res["pollutionLevel"] == 6:
+                    pollutionLevel = 4  # red
+                    pollutionText = _("Really bad air quality")
+                else:
+                    pollutionLevel = 0
+
+                self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['nValue'] = pollutionLevel
+                self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['sValue'] = pollutionText
+            except KeyError:
+                pass  # No air pollution value
+
 
             try:
                 humidity = int(round(res["humidity"]))
@@ -406,13 +431,12 @@ class BasePlugin:
                 pass  # No pressure value
 
             self.doUpdate()
-
-            self.lastDataFetch = datetime.datetime.now()
-            self.inProgress = False
         except SensorNotFoundException as snfe:
             Domoticz.Error(_("Sensor id (%(sensor_id)d) not exists") % {'sensor_id': int(Parameters["Mode2"])})
         except UnauthorizedException as ue:
             Domoticz.Error(_("Not authorized"))
+        finally:
+            self.inProgress = False
 
 
     def doUpdate(self):
@@ -460,9 +484,28 @@ class BasePlugin:
             try:
                 response_object = json.loads(response_body.decode("utf-8"))
             except UnicodeDecodeError as ude:
+                Domoticz.Log("Response decode error")
+                Domoticz.Debug(str(ude))
                 Domoticz.Error(ude)
+
+                # reset nextpool datestamp to force running in next run
+                self.nextpoll = datetime.datetime.now()
+
+
+            # airly station
             if "currentMeasurements" in response_object and len(response_object['currentMeasurements']) > 0:
                 return response_object['currentMeasurements']
+            # gios station
+            elif "history" in response_object and len(response_object['history']) > 0:
+                # get last measurement
+                i = len(response_object['history'])
+                while True:
+                    if len(response_object['history'][i - 1]['measurements']) > 0:
+                        return response_object['history'][i - 1]['measurements']
+                        break
+                    i -= 1
+                    if i < 0:
+                        break
             else:
                 raise SensorNotFoundException(sensor_id, "")
 
