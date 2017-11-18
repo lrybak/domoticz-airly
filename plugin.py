@@ -485,8 +485,7 @@ class BasePlugin:
                 response_object = json.loads(response_body.decode("utf-8"))
             except UnicodeDecodeError as ude:
                 Domoticz.Log("Response decode error")
-                Domoticz.Debug(str(ude))
-                Domoticz.Error(ude)
+                Domoticz.Error(str(ude))
 
                 # reset nextpool datestamp to force running in next run
                 self.nextpoll = datetime.datetime.now()
