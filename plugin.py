@@ -10,6 +10,7 @@
 # v0.1.2 - removed gettext based translations - it caused plugin instability
 # v0.2   - added support for GIOS stations, fixed a bug where the update was suspended in the event of a response decode error
 # v0.2.1 - pm25 & pm10 percentage indicator
+# v0.2.2 - better exception handling
 #
 """
 <plugin key="AIRLY" name="domoticz-airly" author="fisher" version="0.1.0" wikilink="https://www.domoticz.com/wiki/Plugins/domoticz-airly.html" externallink="https://github.com/lrybak/domoticz-airly">
@@ -32,6 +33,7 @@ import json
 from http.client import HTTPSConnection
 from urllib.parse import urlparse
 from urllib.parse import urlencode
+import socket
 
 L10N = {
     'pl': {
@@ -86,7 +88,17 @@ L10N = {
         "Update unit=%d; nValue=%d; sValue=%s":
             "Aktualizacja unit=%d; nValue=%d; sValue=%s",
         "Bad air today!":
-            "Zła jakość powietrza"
+            "Zła jakość powietrza",
+        "Enter correct airly API key - get one on https://developer.airly.eu":
+            "Wprowadź poprawny klucz api -  pobierz klucz na stronie https://developer.airly.eu",
+        "Awaiting next pool: %s":
+            "Oczekiwanie na następne pobranie: %s",
+        "Next pool attempt at: %s":
+            "Następna próba pobrania: %s",
+        "Connection to airly api failed: %s":
+            "Połączenie z airly api nie powiodło się: %s",
+        "Unrecognized error: %s":
+            "Nierozpoznany błąd: %s"
     },
     'en': { }
 }
@@ -103,6 +115,16 @@ class UnauthorizedException(Exception):
         self.message = message
 
 class SensorNotFoundException(Exception):
+    def __init__(self, expression, message):
+        self.expression = expression
+        self.message = message
+
+class TooManyRequestsException(Exception):
+    def __init__(self, expression, message):
+        self.expression = expression
+        self.message = message
+
+class ConnectionErrorException(Exception):
     def __init__(self, expression, message):
         self.expression = expression
         self.message = message
@@ -150,6 +172,7 @@ class BasePlugin:
 
         self.nextpoll = datetime.datetime.now()
         return
+
 
     def onStart(self):
         Domoticz.Debug("onStart called")
@@ -256,7 +279,6 @@ class BasePlugin:
 
         self.onHeartbeat(fetch=True)
 
-
     def onStop(self):
         Domoticz.Log("onStop called")
         Domoticz.Debugging(0)
@@ -278,6 +300,9 @@ class BasePlugin:
     def onDisconnect(self):
         Domoticz.Log("onDisconnect called")
 
+    def postponeNextPool(self, seconds=3600):
+        self.nextpoll = (datetime.datetime.now() + datetime.timedelta(seconds=seconds))
+        return self.nextpoll
 
     def createDevice(self, key=None):
         """create Domoticz virtual device"""
@@ -340,38 +365,54 @@ class BasePlugin:
 
         if fetch == False:
             if self.inProgress or (now < self.nextpoll):
-                Domoticz.Debug("Awaiting next pool: %s" % str(self.nextpoll))
+                Domoticz.Debug(_("Awaiting next pool: %s") % str(self.nextpoll))
                 return
 
         # Set next pool time
-        self.nextpoll = now + datetime.timedelta(seconds=self.pollinterval)
+        self.postponeNextPool(seconds=self.pollinterval)
 
         # First call, lets query API for sensor location data
-        if fetch:
-            res = self.sensor_info(Parameters["Mode2"])
+        try:
+            if fetch:
+                res = self.sensor_info(Parameters["Mode2"])
 
-            address = ""
-            if "route" in res["address"]:
-                address = res["address"]["route"]
-                if "streetNumber" in res["address"]:
-                    address = address + " " + res["address"]["streetNumber"]
+                address = ""
+                if "route" in res["address"]:
+                    address = res["address"]["route"]
+                    if "streetNumber" in res["address"]:
+                        address = address + " " + res["address"]["streetNumber"]
 
-            if len(address) > 0:
-                self.variables[self.UNIT_STATION_LOCATION]['sValue'] = _("%(Vendor)s - %(Address)s, %(Locality)s<br/>Station founder: %(sensorFounder)s") % {
-                    "Vendor": res["vendor"],
-                    "Address": address,
-                    "Locality": res["address"]["locality"],
-                    "sensorFounder": res["name"],
-                }
-            else:
-                self.variables[self.UNIT_STATION_LOCATION]['sValue'] = _("%(Vendor)s - %(Locality)s %(StreetNumber)s<br/>Station founder: %(sensorFounder)s") % {
-                    "Vendor": res["vendor"],
-                    "Locality": res["address"]["locality"],
-                    "StreetNumber": res["address"]["streetNumber"] if "streetNumber" in res["address"] else "",
-                    "sensorFounder": res["name"],
-                }
-
-            self.doUpdate()
+                if len(address) > 0:
+                    self.variables[self.UNIT_STATION_LOCATION]['sValue'] = _("%(Vendor)s - %(Address)s, %(Locality)s<br/>Station founder: %(sensorFounder)s") % {
+                        "Vendor": res["vendor"],
+                        "Address": address,
+                        "Locality": res["address"]["locality"],
+                        "sensorFounder": res["name"],
+                    }
+                else:
+                    self.variables[self.UNIT_STATION_LOCATION]['sValue'] = _("%(Vendor)s - %(Locality)s %(StreetNumber)s<br/>Station founder: %(sensorFounder)s") % {
+                        "Vendor": res["vendor"],
+                        "Locality": res["address"]["locality"],
+                        "StreetNumber": res["address"]["streetNumber"] if "streetNumber" in res["address"] else "",
+                        "sensorFounder": res["name"],
+                    }
+                self.doUpdate()
+        except UnauthorizedException as ue:
+            Domoticz.Error(ue.message)
+            Domoticz.Error(_("Enter correct airly API key - get one on https://developer.airly.eu"))
+            return
+        except TooManyRequestsException as tmre:
+            Domoticz.Error(tmre.message)
+            # postpone next pool to tomorrow
+            next_attempt = self.postponeNextPool()
+            Domoticz.Error(_("Next pool attempt at: %s") % str(next_attempt))
+            return
+        except ConnectionErrorException as cee:
+            Domoticz.Error(_("Connection to airly api failed: %s") % str(cee.message))
+            return
+        except Exception as e:
+            Domoticz.Error(e.message)
+            return
 
         try:
             # check if another thread is not running
@@ -460,8 +501,22 @@ class BasePlugin:
             self.doUpdate()
         except SensorNotFoundException as snfe:
             Domoticz.Error(_("Sensor id (%(sensor_id)d) not exists") % {'sensor_id': int(Parameters["Mode2"])})
+            return
         except UnauthorizedException as ue:
-            Domoticz.Error(_("Not authorized"))
+            Domoticz.Error(ue.message)
+            Domoticz.Error(_("Enter correct airly API key - get one on https://developer.airly.eu"))
+            return
+        except TooManyRequestsException as tmre:
+            Domoticz.Error(tmre.message)
+            # postpone next pool to tomorrow
+            next_attempt = self.postponeNextPool()
+            Domoticz.Error(_("Next pool attempt at: %s") % str(next_attempt))
+            return
+        except ConnectionErrorException as cee:
+            Domoticz.Error(_("Connection to airly api failed: %s") % str(cee.message))
+            return
+        except Exception as e:
+            Domoticz.Error(_("Unrecognized error: %s") % str(e))
         finally:
             self.inProgress = False
 
@@ -497,27 +552,27 @@ class BasePlugin:
         airly_api = urlparse(self.api_v1_sensor_measurements)
         params = urlencode({'sensorId': sensor_id})
 
-        conn = HTTPSConnection(airly_api.netloc)
-        conn.request(
-            method="GET",
-            url=airly_api.path + "?" + params,
-            headers=self.api_airly_headers(),
-        )
-
-        response = conn.getresponse()
-        response_object = {}
-        if response.status == 200:
+        try:
+            conn = HTTPSConnection(airly_api.netloc)
+            conn.request(
+                method="GET",
+                url=airly_api.path + "?" + params,
+                headers=self.api_airly_headers(),
+            )
+            response = conn.getresponse()
+            response_object = {}
             response_body = response.read()
-            try:
-                response_object = json.loads(response_body.decode("utf-8"))
-            except UnicodeDecodeError as ude:
-                Domoticz.Log("Response decode error")
-                Domoticz.Error(str(ude))
+        except Exception as e:
+            raise ConnectionErrorException('', str(e))
 
-                # reset nextpool datestamp to force running in next run
-                self.nextpoll = datetime.datetime.now()
+        try:
+            response_object = json.loads(response_body.decode("utf-8"))
+        except UnicodeDecodeError as ude:
+            Domoticz.Error(str(ude.message))
+            # reset nextpool datestamp to force running in next run
+            self.postponeNextPool(seconds=0)
 
-
+        if response.status == 200:
             # airly station
             if "currentMeasurements" in response_object and len(response_object['currentMeasurements']) > 0:
                 return response_object['currentMeasurements']
@@ -534,35 +589,67 @@ class BasePlugin:
                         break
             else:
                 raise SensorNotFoundException(sensor_id, "")
-
             return response_object
         elif response.status in (401, 403, 404):
-            raise UnauthorizedException(response.status, response.reason)
+            raise UnauthorizedException(
+                response.status,
+                response_object['message'] if "message" in response_object else 'UnauthorizedException'
+            )
+        elif response.status == 429:
+            raise TooManyRequestsException(
+                response.status,
+                response_object['message'] if "message" in response_object else 'TooManyRequestsException1'
+            )
         else:
-            Domoticz.Log(str(response.status) + ": " + response.reason)
+            Domoticz.Error(
+                str(response.status) + ": " +
+                response_object['message'] if "message" in response_object else 'UnknownError'
+            )
 
     def sensor_info(self, sensor_id):
         """Sensor's info with coordinates, address and current pollution level"""
 
         sensor_id = int(sensor_id)
         airly_api = urlparse(self.api_v1_sensor_info)
-        conn = HTTPSConnection(airly_api.netloc)
-        conn.request(
-            method="GET",
-            url=airly_api.path % {'sensorId': sensor_id},
-            headers=self.api_airly_headers(),
-        )
 
-        response = conn.getresponse()
-        response_object = {}
-        if response.status == 200:
+        try:
+            conn = HTTPSConnection(airly_api.netloc)
+            conn.request(
+                method="GET",
+                url=airly_api.path % {'sensorId': sensor_id},
+                headers=self.api_airly_headers(),
+            )
+            response = conn.getresponse()
+            response_object = {}
             response_body = response.read()
+        except Exception as e:
+            raise ConnectionErrorException('', str(e))
+
+        try:
             response_object = json.loads(response_body.decode("utf-8"))
+        except UnicodeDecodeError as ude:
+            Domoticz.Error(ude.message)
+            # reset nextpool datestamp to force running in next run
+            self.nextpoll = datetime.datetime.now()
+            return response_object
+
+        if response.status == 200:
             return response_object
         elif response.status in (403, 404):
-            raise UnauthorizedException(response.status, response.reason)
+            raise UnauthorizedException(
+                response.status,
+                response_object['message'] if "message" in response_object else 'UnauthorizedException'
+            )
+        elif response.status == 429:
+            raise TooManyRequestsException(
+                response.status,
+                response_object['message'] if "message" in response_object else 'TooManyRequestsException2'
+            )
         else:
-            Domoticz.Log(str(response.status) + ": " + response.reason)
+            Domoticz.Error(
+                str(response.status) + ": " +
+                response_object['message'] if "message" in response_object else 'UnknownError'
+            )
 
 global _plugin
 _plugin = BasePlugin()
