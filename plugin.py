@@ -13,7 +13,7 @@
 # v0.2.2 - better exception handling
 #
 """
-<plugin key="AIRLY" name="domoticz-airly" author="fisher" version="0.1.0" wikilink="https://www.domoticz.com/wiki/Plugins/domoticz-airly.html" externallink="https://github.com/lrybak/domoticz-airly">
+<plugin key="AIRLY" name="domoticz-airly" author="fisher" version="0.2.2" wikilink="https://www.domoticz.com/wiki/Plugins/domoticz-airly.html" externallink="https://github.com/lrybak/domoticz-airly">
     <params>
 		<param field="Mode1" label="Airly API key" default="" width="400px" required="true"  />
         <param field="Mode2" label="Airly sensor id" width="40px" default="" required="true" />
