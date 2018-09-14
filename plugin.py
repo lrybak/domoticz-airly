@@ -11,12 +11,13 @@
 # v0.2   - added support for GIOS stations, fixed a bug where the update was suspended in the event of a response decode error
 # v0.2.1 - pm25 & pm10 percentage indicator
 # v0.2.2 - better exception handling
+# v0.3.0 - airly APIv2 support, airly logo added to pm1/10/2.5 sensors
 #
 """
-<plugin key="AIRLY" name="domoticz-airly" author="fisher" version="0.2.2" wikilink="https://www.domoticz.com/wiki/Plugins/domoticz-airly.html" externallink="https://github.com/lrybak/domoticz-airly">
+<plugin key="AIRLY" name="domoticz-airly" author="fisher" version="0.3.0" wikilink="https://www.domoticz.com/wiki/Plugins/domoticz-airly.html" externallink="https://github.com/lrybak/domoticz-airly">
     <params>
 		<param field="Mode1" label="Airly API key" default="" width="400px" required="true"  />
-        <param field="Mode2" label="Airly sensor id" width="40px" default="" required="true" />
+        <param field="Mode2" label="Airly installation id" width="40px" default="" required="true" />
         <param field="Mode3" label="Check every x minutes" width="40px" default="15" required="true" />
 		<param field="Mode6" label="Debug" width="75px">
 			<options>
@@ -51,13 +52,15 @@ L10N = {
             "PM10 Norma",
         "Air pollution Level":
             "Zanieczyszczenie powietrza",
+        "Advice":
+            "Wskazówki",
         "Temperature":
             "Temperatura",
         "Air pressure":
             "Ciśnienie powietrza",
         "Humidity":
             "Wilgotność",
-        "Sensor information":
+        "Installation information":
             "Informacje o stacji",
         "Device Unit=%(Unit)d; Name='%(Name)s' already exists":
             "Urządzenie Unit=%(Unit)d; Name='%(Name)s' już istnieje",
@@ -67,20 +70,8 @@ L10N = {
             "%(Vendor)s - %(Address)s, %(Locality)s<br/>Sponsor stacji: %(sensorFounder)s",
         "%(Vendor)s - %(Locality)s %(StreetNumber)s<br/>Station founder: %(sensorFounder)s":
             "%(Vendor)s - %(Locality)s %(StreetNumber)s<br/>Sponsor stacji: %(sensorFounder)s",
-        "Great air quality":
-            "Bardzo dobra jakość powietrza",
-        "Good air quality":
-            "Dobra jakość powietrza",
-        "Average air quality":
-            "Przeciętna jakość powietrza",
-        "Poor air quality":
-            "Słaba jakość powietrza",
-        "Bad air quality":
-            "Zła jakość powietrza",
-        "Really bad air quality":
-            "Bardzo zła jakość powietrza",
-        "Sensor id (%(sensor_id)d) not exists":
-            "Sensor (%(sensor_id)d) nie istnieje",
+        "Sensor id (%(installation_id)d) not exists":
+            "Sensor (%(installation_id)d) nie istnieje",
         "Not authorized":
             "Brak autoryzacji",
         "Starting device update":
@@ -91,9 +82,9 @@ L10N = {
             "Zła jakość powietrza",
         "Enter correct airly API key - get one on https://developer.airly.eu":
             "Wprowadź poprawny klucz api -  pobierz klucz na stronie https://developer.airly.eu",
-        "Awaiting next pool: %s":
+        "Awaiting next poll: %s":
             "Oczekiwanie na następne pobranie: %s",
-        "Next pool attempt at: %s":
+        "Next poll attempt at: %s":
             "Następna próba pobrania: %s",
         "Connection to airly api failed: %s":
             "Połączenie z airly api nie powiodło się: %s",
@@ -134,10 +125,12 @@ class BasePlugin:
 
     def __init__(self):
         # Consts
-        self.version = "0.1.2"
+        self.version = "0.3.0"
         self.airly_api_user_agent = "domoticz-airly/%s" % self.version
-        self.api_v1_sensor_measurements = "https://airapi.airly.eu/v1/sensor/measurements"
-        self.api_v1_sensor_info = "https://airapi.airly.eu/v1/sensors/%(sensorId)d"
+        # Api v2
+        self.api_v2_installation_measurements = "https://airapi.airly.eu/v2/measurements/installation"
+        self.api_v2_installation_info = "https://airapi.airly.eu/v2/installations/%(installationId)d"
+
         self.airly_api_headers = {
             "User-Agent": self.airly_api_user_agent,
             "Accept": "application/json",
@@ -162,6 +155,7 @@ class BasePlugin:
         self.UNIT_BAROMETER             = 7
         self.UNIT_HUMIDITY              = 8
         self.UNIT_STATION_LOCATION      = 9
+        self.UNIT_AIR_POLLUTION_ADVICE  = 10
 
         self.UNIT_PM25_PERCENTAGE       = 11
         self.UNIT_PM10_PERCENTAGE       = 12
@@ -169,6 +163,8 @@ class BasePlugin:
         self.UNIT_PM25_NORM             = 25
         self.UNIT_PM10_NORM             = 50
 
+        # Icons
+        self.iconName = "airly"
 
         self.nextpoll = datetime.datetime.now()
         return
@@ -186,13 +182,15 @@ class BasePlugin:
         Domoticz.Heartbeat(20)
         self.pollinterval = int(Parameters["Mode3"]) * 60
 
+        if self.iconName not in Images: Domoticz.Image('icons.zip').Create()
+        iconID = Images[self.iconName].ID
 
         self.variables = {
             self.UNIT_AIR_QUALITY_INDEX: {
                 "Name":     _("Air Quality Index"),
                 "TypeName": "Custom",
                 "Options":  {"Custom": "1;%s" % "CAQI"},
-                "Image":    7,
+                "Image":    iconID,
                 "Used":     1,
                 "nValue":   0,
                 "sValue":   None,
@@ -201,7 +199,7 @@ class BasePlugin:
                 "Name":     _("PM1"),
                 "TypeName": "Custom",
                 "Options":  {"Custom": "1;%s" % "µg/m³"},
-                "Image":    7,
+                "Image":    iconID,
                 "Used":     0,
                 "nValue":   0,
                 "sValue":   None,
@@ -210,7 +208,7 @@ class BasePlugin:
                 "Name":     _("PM2,5"),
                 "TypeName": "Custom",
                 "Options":  {"Custom": "1;%s" % "µg/m³"},
-                "Image":    7,
+                "Image":    iconID,
                 "Used":     1,
                 "nValue":   0,
                 "sValue":   None,
@@ -219,13 +217,21 @@ class BasePlugin:
                 "Name":     _("PM10"),
                 "TypeName": "Custom",
                 "Options":  {"Custom": "1;%s" % "µg/m³"},
-                "Image":    7,
+                "Image":    iconID,
                 "Used":     1,
                 "nValue":   0,
                 "sValue":   None,
             },
             self.UNIT_AIR_POLLUTION_LEVEL: {
                 "Name":     _("Air pollution Level"),
+                "TypeName": "Alert",
+                "Image":    7,
+                "Used":     1,
+                "nValue":   0,
+                "sValue":   None,
+            },
+            self.UNIT_AIR_POLLUTION_ADVICE: {
+                "Name":     _("Advice"),
                 "TypeName": "Alert",
                 "Image":    7,
                 "Used":     1,
@@ -374,29 +380,25 @@ class BasePlugin:
         # First call, lets query API for sensor location data
         try:
             if fetch:
-                res = self.sensor_info(Parameters["Mode2"])
-
+                res = self.installation_info(Parameters["Mode2"])
                 address = ""
-                if "route" in res["address"]:
-                    address = res["address"]["route"]
-                    if "streetNumber" in res["address"]:
-                        address = address + " " + res["address"]["streetNumber"]
-
+                if "street" in res["address"] and res["address"]["street"] is not None:
+                    address = res["address"]["street"]
+                    if "number" in res["address"] and res["address"]["number"] is not None:
+                        address = address + " " + res["address"]["number"]
                 if len(address) > 0:
-                    self.variables[self.UNIT_STATION_LOCATION]['sValue'] = _("%(Vendor)s - %(Address)s, %(Locality)s<br/>Station founder: %(sensorFounder)s") % {
-                        "Vendor": res["vendor"],
+                    self.variables[self.UNIT_STATION_LOCATION]['sValue'] = _("%(Address)s, %(City)s<br/>Station founder: %(sensorFounder)s") % {
                         "Address": address,
-                        "Locality": res["address"]["locality"],
-                        "sensorFounder": res["name"],
+                        "City": res["address"]["city"],
+                        "sensorFounder": res["sponsor"]["name"],
                     }
                 else:
-                    self.variables[self.UNIT_STATION_LOCATION]['sValue'] = _("%(Vendor)s - %(Locality)s %(StreetNumber)s<br/>Station founder: %(sensorFounder)s") % {
-                        "Vendor": res["vendor"],
-                        "Locality": res["address"]["locality"],
-                        "StreetNumber": res["address"]["streetNumber"] if "streetNumber" in res["address"] else "",
-                        "sensorFounder": res["name"],
+                    self.variables[self.UNIT_STATION_LOCATION]['sValue'] = _("%(City)s<br/>Station founder: %(sensorFounder)s") % {
+                        "City": res["address"]["city"],
+                        "sensorFounder": res["sponsor"]["name"],
                     }
                 self.doUpdate()
+
         except UnauthorizedException as ue:
             Domoticz.Error(ue.message)
             Domoticz.Error(_("Enter correct airly API key - get one on https://developer.airly.eu"))
@@ -419,68 +421,76 @@ class BasePlugin:
             # and time between last fetch has elapsed
             self.inProgress = True
 
-            res = self.sensor_measurement(Parameters["Mode2"])
+            res = self.installation_measurement(Parameters["Mode2"])
+
+            # iterate through values map
+            values={}
+            for item in res["values"]:
+                try:
+                    values[item['name']] = item['value']
+                except KeyError:
+                    pass  # No key/value
 
             try:
-                self.variables[self.UNIT_PM10]['sValue'] = res["pm10"]
-                self.variables[self.UNIT_PM10_PERCENTAGE]['sValue'] = (res["pm10"]/self.UNIT_PM10_NORM) * 100
+                self.variables[self.UNIT_PM10]['sValue'] = values["PM10"]
+                self.variables[self.UNIT_PM10_PERCENTAGE]['sValue'] = (values["PM10"]/self.UNIT_PM10_NORM) * 100
             except KeyError:
                 pass  # No pm10 value
 
             try:
-                self.variables[self.UNIT_PM25]['sValue'] = res["pm25"]
-                self.variables[self.UNIT_PM25_PERCENTAGE]['sValue'] = (res["pm25"] / self.UNIT_PM25_NORM) * 100
+                self.variables[self.UNIT_PM25]['sValue'] = values["PM25"]
+                self.variables[self.UNIT_PM25_PERCENTAGE]['sValue'] = (values["PM25"] / self.UNIT_PM25_NORM) * 100
             except KeyError:
                 pass  # No pm25 value
 
             try:
-                self.variables[self.UNIT_PM1]['sValue'] = res["pm1"]
+                self.variables[self.UNIT_PM1]['sValue'] = values["PM1"]
             except KeyError:
                 pass  # No pm1 value
 
             try:
-                self.variables[self.UNIT_AIR_QUALITY_INDEX]['sValue'] = res["airQualityIndex"]
+                self.variables[self.UNIT_AIR_QUALITY_INDEX]['sValue'] = res["indexes"][0]["value"]
             except KeyError:
                 pass  # No airQualityIndex value
 
             try:
-                if res["pollutionLevel"] == 1:
+                if res["indexes"][0]["level"] == "VERY_LOW":
                     pollutionLevel = 1  # green
-                    pollutionText = _("Great air quality")
-                elif res["pollutionLevel"] == 2:
+                elif res["indexes"][0]["level"] == "LOW":
                     pollutionLevel = 1  # green
-                    pollutionText = _("Good air quality")
-                elif res["pollutionLevel"] == 3:
+                elif res["indexes"][0]["level"] == "MEDIUM":
                     pollutionLevel = 2  # yellow
-                    pollutionText = _("Average air quality")
-                elif res["pollutionLevel"] == 4:
+                elif res["indexes"][0]["level"] == "HIGH":
                     pollutionLevel = 3  # orange
-                    pollutionText = _("Poor air quality")
-                elif res["pollutionLevel"] == 5:
+                elif res["indexes"][0]["level"] == "EXTREME":
                     pollutionLevel = 4  # red
-                    pollutionText = _("Bad air quality")
-                elif res["pollutionLevel"] == 6:
+                elif res["indexes"][0]["level"] == "AIRMAGEDDON":
                     pollutionLevel = 4  # red
-                    pollutionText = _("Really bad air quality")
                 else:
                     pollutionLevel = 0
+                
+                pollutionDescription = res["indexes"][0]["description"]
+                pollutionAdvice = res["indexes"][0]["advice"]
 
                 self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['nValue'] = pollutionLevel
-                self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['sValue'] = pollutionText
+                self.variables[self.UNIT_AIR_POLLUTION_LEVEL]['sValue'] = pollutionDescription
+                
+                self.variables[self.UNIT_AIR_POLLUTION_ADVICE]['nValue'] = pollutionLevel
+                self.variables[self.UNIT_AIR_POLLUTION_ADVICE]['sValue'] = pollutionAdvice
+                
             except KeyError:
                 pass  # No air pollution value
 
-
             try:
-                humidity = int(round(res["humidity"]))
+                humidity = int(round(values["HUMIDITY"]))
                 if humidity < 40:
-                    humidity_status = 2  # dry humidity
+                    humidity_status = 2  # dry HUMIDITY
                 elif 40 <= humidity <= 60:
-                    humidity_status = 0  # normal humidity
+                    humidity_status = 0  # normal HUMIDITY
                 elif 40 < humidity <= 70:
-                    humidity_status = 1  # comfortable humidity
+                    humidity_status = 1  # comfortable HUMIDITY
                 else:
-                    humidity_status = 3  # wet humidity
+                    humidity_status = 3  # wet HUMIDITY
 
                 self.variables[self.UNIT_HUMIDITY]['nValue'] = humidity
                 self.variables[self.UNIT_HUMIDITY]['sValue'] = str(humidity_status)
@@ -488,19 +498,19 @@ class BasePlugin:
                 pass  # No humidity value
 
             try:
-                self.variables[self.UNIT_TEMPERATURE]['sValue'] = res["temperature"]
+                self.variables[self.UNIT_TEMPERATURE]['sValue'] = values["TEMPERATURE"]
             except KeyError:
                 pass  # No temperature value
 
             try:
                 # in hpa + normal forecast
-                self.variables[self.UNIT_BAROMETER]['sValue'] = str(round(res["pressure"]/100)) + ";0"
+                self.variables[self.UNIT_BAROMETER]['sValue'] = str(values["PRESSURE"]) + ";0"
             except KeyError:
                 pass  # No pressure value
 
             self.doUpdate()
         except SensorNotFoundException as snfe:
-            Domoticz.Error(_("Sensor id (%(sensor_id)d) not exists") % {'sensor_id': int(Parameters["Mode2"])})
+            Domoticz.Error(_("Sensor id (%(installation_id)d) not exists") % {'installation_id': int(Parameters["Mode2"])})
             return
         except UnauthorizedException as ue:
             Domoticz.Error(ue.message)
@@ -543,14 +553,21 @@ class BasePlugin:
 
         self.airly_api_headers['apikey'] = Parameters['Mode1']
         self.airly_api_headers['User-Agent'] = self.airly_api_user_agent
+        self.airly_api_headers['User-Agent'] = self.airly_api_user_agent
+        self.airly_api_headers['Accept-Language'] = Settings["Language"]
+        
         return self.airly_api_headers
 
-    def sensor_measurement(self, sensor_id):
+    def installation_measurement(self, installation_id):
         """current sensor measurements"""
 
-        sensor_id = int(sensor_id)
-        airly_api = urlparse(self.api_v1_sensor_measurements)
-        params = urlencode({'sensorId': sensor_id})
+        installation_id = int(installation_id)
+        airly_api = urlparse(self.api_v2_installation_measurements)
+        params = urlencode({
+            'installationId': installation_id,
+            'indexType': 'AIRLY_CAQI'
+            })
+        
 
         try:
             conn = HTTPSConnection(airly_api.netloc)
@@ -573,22 +590,10 @@ class BasePlugin:
             self.postponeNextPool(seconds=0)
 
         if response.status == 200:
-            # airly station
-            if "currentMeasurements" in response_object and len(response_object['currentMeasurements']) > 0:
-                return response_object['currentMeasurements']
-            # gios station
-            elif "history" in response_object and len(response_object['history']) > 0:
-                # get last measurement
-                i = len(response_object['history'])
-                while True:
-                    if len(response_object['history'][i - 1]['measurements']) > 0:
-                        return response_object['history'][i - 1]['measurements']
-                        break
-                    i -= 1
-                    if i < 0:
-                        break
+            if "current" in response_object and len(response_object['current']) > 0:
+                return response_object['current']
             else:
-                raise SensorNotFoundException(sensor_id, "")
+                raise SensorNotFoundException(installation_id, "")
             return response_object
         elif response.status in (401, 403, 404):
             raise UnauthorizedException(
@@ -606,17 +611,17 @@ class BasePlugin:
                 response_object['message'] if "message" in response_object else 'UnknownError'
             )
 
-    def sensor_info(self, sensor_id):
-        """Sensor's info with coordinates, address and current pollution level"""
+    def installation_info(self, installation_id):
+        """Station's info with coordinates, address and current pollution level"""
 
-        sensor_id = int(sensor_id)
-        airly_api = urlparse(self.api_v1_sensor_info)
+        installation_id = int(installation_id)
+        airly_api = urlparse(self.api_v2_installation_info)
 
         try:
             conn = HTTPSConnection(airly_api.netloc)
             conn.request(
                 method="GET",
-                url=airly_api.path % {'sensorId': sensor_id},
+                url=airly_api.path % {'installationId': installation_id},
                 headers=self.api_airly_headers(),
             )
             response = conn.getresponse()
@@ -635,6 +640,11 @@ class BasePlugin:
 
         if response.status == 200:
             return response_object
+        elif response.status == 301:
+            Domoticz.Error(
+                str(response.status) + ": " +
+                response_object['message'] if "message" in response_object else 'UnknownError'
+            )
         elif response.status in (403, 404):
             raise UnauthorizedException(
                 response.status,
