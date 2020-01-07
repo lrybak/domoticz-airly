@@ -12,9 +12,10 @@
 # v0.2.1 - pm25 & pm10 percentage indicator
 # v0.2.2 - better exception handling
 # v0.3.0 - airly APIv2 support, airly logo added to pm1/10/2.5 sensors
+# v0.3.1 - add NO2 SO2 O3 and CO measurements (by CHKDSK88)
 #
 """
-<plugin key="AIRLY" name="domoticz-airly" author="fisher" version="0.3.0" wikilink="https://www.domoticz.com/wiki/Plugins/domoticz-airly.html" externallink="https://github.com/lrybak/domoticz-airly">
+<plugin key="AIRLY" name="domoticz-airly" author="fisher" version="0.3.1" wikilink="https://www.domoticz.com/wiki/Plugins/domoticz-airly.html" externallink="https://github.com/lrybak/domoticz-airly">
     <params>
 		<param field="Mode1" label="Airly API key" default="" width="400px" required="true"  />
         <param field="Mode2" label="Airly installation id" width="40px" default="" required="true" />
@@ -46,10 +47,26 @@ L10N = {
             "PM2,5",
         "PM10":
             "PM10",
+        "NO₂":
+            "NO₂",
+        "O₃":
+            "O₃",
+        "SO₂":
+            "SO₂",
+        "CO":
+            "CO",
         "PM2,5 Norm":
             "PM2,5 Norma",
         "PM10 Norm":
             "PM10 Norma",
+        "NO₂ Norm":
+            "NO₂ Norma",
+        "O₃ Norm":
+            "O₃ Norma",
+        "SO₂ Norm":
+            "SO₂ Norma",
+        "CO Norm":
+            "CO Norma",
         "Air pollution Level":
             "Zanieczyszczenie powietrza",
         "Advice":
@@ -125,7 +142,7 @@ class BasePlugin:
 
     def __init__(self):
         # Consts
-        self.version = "0.3.0"
+        self.version = "0.3.1"
         self.airly_api_user_agent = "domoticz-airly/%s" % self.version
         # Api v2
         self.api_v2_installation_measurements = "https://airapi.airly.eu/v2/measurements/installation"
@@ -159,9 +176,22 @@ class BasePlugin:
 
         self.UNIT_PM25_PERCENTAGE       = 11
         self.UNIT_PM10_PERCENTAGE       = 12
+        self.UNIT_NO2_PERCENTAGE        = 13
+        self.UNIT_O3_PERCENTAGE         = 14
+        self.UNIT_SO2_PERCENTAGE        = 15
+        self.UNIT_CO_PERCENTAGE         = 16
+
+        self.UNIT_NO2                   = 21
+        self.UNIT_O3                    = 22
+        self.UNIT_SO2                   = 23
+        self.UNIT_CO                    = 24
 
         self.UNIT_PM25_NORM             = 25
         self.UNIT_PM10_NORM             = 50
+        self.UNIT_NO2_NORM              = 200
+        self.UNIT_O3_NORM               = 100
+        self.UNIT_SO2_NORM              = 350
+        self.UNIT_CO_NORM               = 30000
 
         # Icons
         self.iconName = "airly"
@@ -222,6 +252,38 @@ class BasePlugin:
                 "nValue":   0,
                 "sValue":   None,
             },
+            self.UNIT_NO2: {
+                "Name":     _("NO₂"),
+                "TypeName": "Custom",
+                "Options":  {"Custom": "1;%s" % "µg/m³"},
+                "Used":     1,
+                "nValue":   0,
+                "sValue":   None,
+            },
+            self.UNIT_O3: {
+                "Name":     _("O₃"),
+                "TypeName": "Custom",
+                "Options":  {"Custom": "1;%s" % "µg/m³"},
+                "Used":     1,
+                "nValue":   0,
+                "sValue":   None,
+            },
+            self.UNIT_SO2: {
+                "Name":     _("SO₂"),
+                "TypeName": "Custom",
+                "Options":  {"Custom": "1;%s" % "µg/m³"},
+                "Used":     1,
+                "nValue":   0,
+                "sValue":   None,
+            },
+            self.UNIT_CO: {
+                "Name":     _("CO"),
+                "TypeName": "Custom",
+                "Options":  {"Custom": "1;%s" % "µg/m³"},
+                "Used":     1,
+                "nValue":   0,
+                "sValue":   None,
+            },
             self.UNIT_AIR_POLLUTION_LEVEL: {
                 "Name":     _("Air pollution Level"),
                 "TypeName": "Alert",
@@ -276,6 +338,34 @@ class BasePlugin:
             },
             self.UNIT_PM10_PERCENTAGE: {
                 "Name": _("PM10 Norm"),
+                "TypeName": "Percentage",
+                "Used": 1,
+                "nValue": 0,
+                "sValue": None,
+            },
+            self.UNIT_NO2_PERCENTAGE: {
+                "Name": _("NO₂ Norm"),
+                "TypeName": "Percentage",
+                "Used": 1,
+                "nValue": 0,
+                "sValue": None,
+            },
+            self.UNIT_O3_PERCENTAGE: {
+                "Name": _("O₃ Norm"),
+                "TypeName": "Percentage",
+                "Used": 1,
+                "nValue": 0,
+                "sValue": None,
+            },
+            self.UNIT_SO2_PERCENTAGE: {
+                "Name": _("SO₂ Norm"),
+                "TypeName": "Percentage",
+                "Used": 1,
+                "nValue": 0,
+                "sValue": None,
+            },
+            self.UNIT_CO_PERCENTAGE: {
+                "Name": _("CO Norm"),
                 "TypeName": "Percentage",
                 "Used": 1,
                 "nValue": 0,
@@ -447,6 +537,30 @@ class BasePlugin:
                 self.variables[self.UNIT_PM1]['sValue'] = values["PM1"]
             except KeyError:
                 pass  # No pm1 value
+
+            try:
+                self.variables[self.UNIT_NO2]['sValue'] = values["NO2"]
+                self.variables[self.UNIT_NO2_PERCENTAGE]['sValue'] = (values["NO2"]/self.UNIT_NO2_NORM) * 100
+            except KeyError:
+                pass  # No no2 value
+
+            try:
+                self.variables[self.UNIT_O3]['sValue'] = values["O3"]
+                self.variables[self.UNIT_O3_PERCENTAGE]['sValue'] = (values["O3"]/self.UNIT_O3_NORM) * 100
+            except KeyError:
+                pass  # No o3 value
+
+            try:
+                self.variables[self.UNIT_SO2]['sValue'] = values["SO2"]
+                self.variables[self.UNIT_SO2_PERCENTAGE]['sValue'] = (values["SO2"]/self.UNIT_SO2_NORM) * 100
+            except KeyError:
+                pass  # No so2 value
+
+            try:
+                self.variables[self.UNIT_CO]['sValue'] = values["CO"]
+                self.variables[self.UNIT_CO_PERCENTAGE]['sValue'] = (values["CO"]/self.UNIT_CO_NORM) * 100
+            except KeyError:
+                pass  # No co value
 
             try:
                 self.variables[self.UNIT_AIR_QUALITY_INDEX]['sValue'] = res["indexes"][0]["value"]
