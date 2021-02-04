@@ -43,8 +43,8 @@ L10N = {
             "Jakość powietrza",
         "PM1":
             "PM1",
-        "PM2,5":
-            "PM2,5",
+        "PM2.5":
+            "PM2.5",
         "PM10":
             "PM10",
         "NO₂":
@@ -55,8 +55,8 @@ L10N = {
             "SO₂",
         "CO":
             "CO",
-        "PM2,5 Norm":
-            "PM2,5 Norma",
+        "PM2.5 Norm":
+            "PM2.5 Norma",
         "PM10 Norm":
             "PM10 Norma",
         "NO₂ Norm":
@@ -235,7 +235,7 @@ class BasePlugin:
                 "sValue":   None,
             },
             self.UNIT_PM25: {
-                "Name":     _("PM2,5"),
+                "Name":     _("PM2.5"),
                 "TypeName": "Custom",
                 "Options":  {"Custom": "1;%s" % "µg/m³"},
                 "Image":    iconID,
@@ -330,7 +330,7 @@ class BasePlugin:
                 "sValue":   None,
             },
             self.UNIT_PM25_PERCENTAGE: {
-                "Name": _("PM2,5 Norm"),
+                "Name": _("PM2.5 Norm"),
                 "TypeName": "Percentage",
                 "Used": 1,
                 "nValue": 0,
