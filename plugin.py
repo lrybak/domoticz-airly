@@ -13,6 +13,7 @@
 # v0.2.2 - better exception handling
 # v0.3.0 - airly APIv2 support, airly logo added to pm1/10/2.5 sensors
 # v0.3.1 - add NO2 SO2 O3 and CO measurements (by CHKDSK88)
+# v0.3.2 - rounding percentage values to integer for correct data push to influxdb (by pkilar43)
 #
 """
 <plugin key="AIRLY" name="domoticz-airly" author="fisher" version="0.3.1" wikilink="https://www.domoticz.com/wiki/Plugins/domoticz-airly.html" externallink="https://github.com/lrybak/domoticz-airly">
@@ -523,13 +524,13 @@ class BasePlugin:
 
             try:
                 self.variables[self.UNIT_PM10]['sValue'] = values["PM10"]
-                self.variables[self.UNIT_PM10_PERCENTAGE]['sValue'] = (values["PM10"]/self.UNIT_PM10_NORM) * 100
+                self.variables[self.UNIT_PM10_PERCENTAGE]['sValue'] = str(round((values["PM10"]/self.UNIT_PM10_NORM) * 100))
             except KeyError:
                 pass  # No pm10 value
 
             try:
                 self.variables[self.UNIT_PM25]['sValue'] = values["PM25"]
-                self.variables[self.UNIT_PM25_PERCENTAGE]['sValue'] = (values["PM25"] / self.UNIT_PM25_NORM) * 100
+                self.variables[self.UNIT_PM25_PERCENTAGE]['sValue'] = str(round((values["PM25"] / self.UNIT_PM25_NORM) * 100))
             except KeyError:
                 pass  # No pm25 value
 
@@ -540,30 +541,30 @@ class BasePlugin:
 
             try:
                 self.variables[self.UNIT_NO2]['sValue'] = values["NO2"]
-                self.variables[self.UNIT_NO2_PERCENTAGE]['sValue'] = (values["NO2"]/self.UNIT_NO2_NORM) * 100
+                self.variables[self.UNIT_NO2_PERCENTAGE]['sValue'] = str(round((values["NO2"]/self.UNIT_NO2_NORM) * 100))
             except KeyError:
                 pass  # No no2 value
 
             try:
                 self.variables[self.UNIT_O3]['sValue'] = values["O3"]
-                self.variables[self.UNIT_O3_PERCENTAGE]['sValue'] = (values["O3"]/self.UNIT_O3_NORM) * 100
+                self.variables[self.UNIT_O3_PERCENTAGE]['sValue'] = str(round((values["O3"]/self.UNIT_O3_NORM) * 100))
             except KeyError:
                 pass  # No o3 value
 
             try:
                 self.variables[self.UNIT_SO2]['sValue'] = values["SO2"]
-                self.variables[self.UNIT_SO2_PERCENTAGE]['sValue'] = (values["SO2"]/self.UNIT_SO2_NORM) * 100
+                self.variables[self.UNIT_SO2_PERCENTAGE]['sValue'] = str(round((values["SO2"]/self.UNIT_SO2_NORM) * 100))
             except KeyError:
                 pass  # No so2 value
 
             try:
                 self.variables[self.UNIT_CO]['sValue'] = values["CO"]
-                self.variables[self.UNIT_CO_PERCENTAGE]['sValue'] = (values["CO"]/self.UNIT_CO_NORM) * 100
+                self.variables[self.UNIT_CO_PERCENTAGE]['sValue'] = str(round((values["CO"]/self.UNIT_CO_NORM) * 100))
             except KeyError:
                 pass  # No co value
 
             try:
-                self.variables[self.UNIT_AIR_QUALITY_INDEX]['sValue'] = res["indexes"][0]["value"]
+                self.variables[self.UNIT_AIR_QUALITY_INDEX]['sValue'] = str(round(res["indexes"][0]["value"]))
             except KeyError:
                 pass  # No airQualityIndex value
 
