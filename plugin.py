@@ -654,8 +654,9 @@ class BasePlugin:
 
             # cast float to str
             if isinstance(sV, float):
-                sV = str(float("{0:.0f}".format(sV))).replace('.', ',')
-
+                #sV = str(float("{0:.0f}".format(sV))).replace('.', ',')
+                sV = str(float("{0:.0f}".format(sV)))
+                
             # Create device if required
             if sV:
                 self.createDevice(key=unit)
