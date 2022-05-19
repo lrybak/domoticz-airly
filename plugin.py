@@ -14,9 +14,9 @@
 # v0.3.0 - airly APIv2 support, airly logo added to pm1/10/2.5 sensors
 # v0.3.1 - add NO2 SO2 O3 and CO measurements (by CHKDSK88)
 # v0.3.2 - rounding percentage values to integer for correct data push to influxdb (by pkilar43)
-#
+# v0.3.2.SmartnyDom.pl - custome version with removed decimal separator conversion causing problmes with influxDB integration (by tschaban)
 """
-<plugin key="AIRLY" name="domoticz-airly" author="fisher" version="0.3.1" wikilink="https://www.domoticz.com/wiki/Plugins/domoticz-airly.html" externallink="https://github.com/lrybak/domoticz-airly">
+<plugin key="AIRLY" name="domoticz-airly" author="fisher" version="0.3.2.SmartnyDom.pl" wikilink="https://www.domoticz.com/wiki/Plugins/domoticz-airly.html" externallink="https://github.com/lrybak/domoticz-airly">
     <params>
 		<param field="Mode1" label="Airly API key" default="" width="400px" required="true"  />
         <param field="Mode2" label="Airly installation id" width="40px" default="" required="true" />
@@ -656,7 +656,7 @@ class BasePlugin:
             if isinstance(sV, float):
                 #sV = str(float("{0:.0f}".format(sV))).replace('.', ',')
                 sV = str(float("{0:.0f}".format(sV)))
-                
+
             # Create device if required
             if sV:
                 self.createDevice(key=unit)
