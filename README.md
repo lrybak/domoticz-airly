@@ -8,7 +8,7 @@ A Python plugin for Domoticz to access airly api for smog data in Poland
 * Get plugin data into DOMOTICZ/plugins directory
 ```
 cd YOUR_DOMOTICZ_PATH/plugins
-git clone https://github.com/tschaban/domoticz-airly.git -b smartnydom.pl
+git clone https://github.com/lrybak/domoticz-airly
 ```
 * Restart Domoticz
 * Go to Setup > Hardware and create new Hardware with type: domoticz-airly
